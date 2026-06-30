@@ -1,0 +1,32 @@
+# Okolje in skrivnosti
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+npm-debug.log*
+
+# Scrapy / pipeline izhodi
+backend/scraper/*.json
+backend/data/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Pomožne datoteke (izvlečki dokumentov, izvorni kloni)
+_source/
+_DN_extract.txt
+_diploma_extract.txt

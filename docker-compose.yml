@@ -1,0 +1,92 @@
+# =============================================================================
+#  Aplikacija za zajem, strukturiranje in shranjevanje podatkov o podjetjih
+#  z uporabo generativne umetne inteligence.
+#
+#  En ukaz za zagon celotnega sistema:   docker compose up --build
+#
+#  Storitve:
+#    mysql     - relacijska podatkovna baza (strukturirani podatki)
+#    qdrant    - vektorska baza (semantično iskanje po besedilih)
+#    backend   - FastAPI: scraping + cleaning + chunking + AI + shranjevanje
+#    frontend  - React (nginx): nadzorna plošča, iskanje in prikaz
+# =============================================================================
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: dn-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-companiesdb}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: dn-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"   # REST API + spletna nadzorna plošča (/dashboard)
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  backend:
+    build: ./backend
+    container_name: dn-backend
+    restart: unless-stopped
+    environment:
+      # --- Relacijska baza (MySQL) ---
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-companiesdb}
+      # --- Vektorska baza (Qdrant) ---
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-company_chunks}
+      # --- OpenAI ---
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-1536}
+      # --- Nastavitve pipelina ---
+      SCRAPE_MAX_PAGES: ${SCRAPE_MAX_PAGES:-40}
+      SCRAPE_MAX_DEPTH: ${SCRAPE_MAX_DEPTH:-2}
+      CHUNK_SIZE: ${CHUNK_SIZE:-1200}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-150}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    container_name: dn-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  mysql_data:
+  qdrant_data:
