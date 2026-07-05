@@ -14,8 +14,8 @@ katerikoli napravi z nameščenim Dockerjem.
 ## Arhitektura
 
 ```
-┌──────────────────────── frontend (React + nginx, vrata 8080) ───────────────────────┐
-│  Nadzorna plošča   │   Organizacije    │    Iskanje (semantično / keyword)  │  Strani │
+┌──────────────────────── frontend (React + nginx, vrata 8081) ───────────────────────┐
+│  Nadzorna plošča │ Organizacije │ Iskanje (semantično / keyword) │ AI klepet │ Strani │
 └───────────────────────────────────────┬──────────────────────────────────────────────┘
                                          │ REST  /api/*
 ┌──────────────────────────── backend (FastAPI, vrata 8000) ──────────────────────────┐
@@ -42,6 +42,7 @@ katerikoli napravi z nameščenim Dockerjem.
 | Vektorske predstavitve + vektorska baza | `backend/app/pipeline/embedding.py` + `backend/app/vector_store.py` (Qdrant) |
 | Pregled, iskanje in prikaz | `frontend/` (React) |
 | Povezovanje modulov | `backend/app/pipeline/orchestrator.py` |
+| AI klepet (RAG) nad podatki — *bonus* | `backend/app/pipeline/chat.py` + `backend/app/routers/chat.py` |
 
 ---
 
@@ -72,7 +73,7 @@ Ko se vse zažene, odpri:
 
 | Storitev | Naslov |
 |---|---|
-| **Spletni vmesnik** | http://localhost:8080 |
+| **Spletni vmesnik** | http://localhost:8081 |
 | Backend API (Swagger) | http://localhost:8000/docs |
 | Qdrant nadzorna plošča | http://localhost:6333/dashboard |
 | MySQL | `localhost:3307` (uporabnik `root`, geslo iz `.env`) |
@@ -87,7 +88,10 @@ Ko se vse zažene, odpri:
 3. **Organizacije** — strukturirani podatki iz MySQL + iskanje po ključnih besedah.
 4. **Iskanje** — preklopi med **semantičnim** (Qdrant, po pomenu) in
    **klasičnim** (MySQL, po ključnih besedah) iskanjem.
-5. **Zajete strani** — pregled očiščenega besedila in chunkov.
+5. **AI klepet** — vprašanja v naravnem jeziku nad zajetimi podatki (RAG):
+   semantično pridobivanje relevantnih koščkov + generativni odgovor z
+   navedbo virov.
+6. **Zajete strani** — pregled očiščenega besedila in chunkov.
 
 > Vsak zagon obdela **eno spletno stran/domeno → eno organizacijo + N strani + M chunkov**.
 > Za več vrstic v tabeli organizacij poženi pipeline na več različnih spletnih straneh.
@@ -134,8 +138,8 @@ Ko se vse zažene, odpri:
 │   ├── app/
 │   │   ├── main.py           # FastAPI vstopna točka
 │   │   ├── config.py db.py models.py schemas.py vector_store.py openai_client.py
-│   │   ├── pipeline/         # cleaning, chunking, extraction, embedding, orchestrator
-│   │   └── routers/          # pipeline, organizations, pages, search, meta
+│   │   ├── pipeline/         # cleaning, chunking, extraction, embedding, chat, orchestrator
+│   │   └── routers/          # pipeline, organizations, pages, search, chat, meta
 │   └── scraper/              # Scrapy projekt (web scraping, pajek "fei")
 └── frontend/                 # React + Vite + Tailwind (nginx)
 ```

@@ -82,7 +82,7 @@ services:
     container_name: dn-frontend
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "${FRONTEND_PORT:-8081}:80"
     depends_on:
       backend:
         condition: service_started
