@@ -129,7 +129,7 @@ export default function Dashboard() {
           {STAGES.map((stage, i) => (
             <React.Fragment key={stage.label}>
               <div
-                className={`flex flex-1 items-center gap-3 rounded-xl border p-3 transition ${
+                className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl border p-3 transition ${
                   isActive
                     ? "border-indigo-200 bg-indigo-50/50"
                     : "border-slate-100 bg-slate-50"
