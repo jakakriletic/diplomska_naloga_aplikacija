@@ -1,145 +1,250 @@
-# Zajem, strukturiranje in shranjevanje podatkov o podjetjih z generativno UI
+# Zajem in strukturiranje podatkov o organizacijah z generativno umetno inteligenco
 
-Diplomski prototip aplikacije, ki **avtomatizirano zajame** podatke s spletnih
-virov, jih **očisti in razdeli** na smiselne enote, z **generativno umetno
-inteligenco strukturira** metapodatke o organizaciji, ter rezultate shrani v
-**relacijsko (MySQL)** in **vektorsko (Qdrant)** bazo. Vse je dostopno prek
-modernega spletnega vmesnika z **iskanjem po pomenu in po ključnih besedah**.
+Diplomski prototip aplikacije za avtomatiziran zajem podatkov s spletnih strani
+organizacij ali podjetij. Sistem strani zajame s Scrapyjem, HTML očisti,
+besedilo razdeli na chunke, z OpenAI modelom poskusi izluščiti strukturirane
+metapodatke o organizaciji ter podatke shrani v MySQL in Qdrant.
 
-Celoten sistem je **kontejneriziran** — zažene se z enim ukazom in deluje na
-katerikoli napravi z nameščenim Dockerjem.
-
----
+Frontend omogoča zagon obdelave, pregled zajetih strani in organizacij,
+iskanje po ključnih besedah, semantično iskanje po vektorjih ter AI klepet nad
+zajetimi podatki.
 
 ## Arhitektura
 
-```
-┌──────────────────────── frontend (React + nginx, vrata 8081) ───────────────────────┐
-│  Nadzorna plošča │ Organizacije │ Iskanje (semantično / keyword) │ AI klepet │ Strani │
-└───────────────────────────────────────┬──────────────────────────────────────────────┘
-                                         │ REST  /api/*
-┌──────────────────────────── backend (FastAPI, vrata 8000) ──────────────────────────┐
-│  PIPELINE (orkestrator):                                                             │
-│   1) ZAJEM (Scrapy) → 2) ČIŠČENJE (BeautifulSoup) → 3) CHUNKING →                    │
-│   4) AI EKSTRAKCIJA (OpenAI) → 5) RELACIJSKA BAZA → 6) VEKTORSKA BAZA                │
-└───────────────┬──────────────────────────────────────────────┬──────────────────────┘
-        ┌────────▼─────────┐                            ┌─────────▼─────────┐
-        │  MySQL (8.4)     │                            │  Qdrant (1.12)    │
-        │  vrata 3307      │                            │  vrata 6333       │
-        │  strukturirano   │                            │  embeddingi       │
-        └──────────────────┘                            └───────────────────┘
+Projekt je primarno pripravljen za zagon z Docker Compose:
+
+| Storitev | Tehnologija | Namen | Privzeta vrata na gostitelju |
+|---|---|---|---|
+| `frontend` | React + Vite, v produkciji nginx | spletni vmesnik in proxy za `/api/*` | `8081` |
+| `backend` | FastAPI | REST API in orkestracija pipelina | `8000` |
+| `mysql` | MySQL 8.4 | relacijski podatki: zagoni, organizacije, strani, chunki | `3307` |
+| `qdrant` | Qdrant 1.12 | vektorji chunkov za semantično iskanje | `6333` |
+
+Pretok podatkov:
+
+```text
+Frontend (/api/*)
+    -> FastAPI backend
+        -> Scrapy zajem spletnih strani
+        -> čiščenje in normalizacija besedila
+        -> shranjevanje strani v MySQL
+        -> AI ekstrakcija metapodatkov organizacije v MySQL
+        -> chunking besedila in shranjevanje chunkov v MySQL
+        -> OpenAI embeddingi in shranjevanje v Qdrant
 ```
 
-### Moduli (skladno z idejo diplome)
+## Moduli v kodi
 
-| Modul iz diplome | Kje v kodi |
+| Del sistema | Kje je implementiran |
 |---|---|
-| Zajem podatkov (web scraping) | `backend/scraper/` (Scrapy, pajek `fei`) |
-| Čiščenje in normalizacija | `backend/scraper/scraper/pipelines.py` + `backend/app/pipeline/cleaning.py` |
-| Razdelitev na enote (chunking) | `backend/app/pipeline/chunking.py` |
-| AI ekstrakcija in strukturiranje | `backend/app/pipeline/extraction.py` (OpenAI) |
-| Shranjevanje v relacijsko bazo | `backend/app/models.py` + MySQL |
-| Vektorske predstavitve + vektorska baza | `backend/app/pipeline/embedding.py` + `backend/app/vector_store.py` (Qdrant) |
-| Pregled, iskanje in prikaz | `frontend/` (React) |
-| Povezovanje modulov | `backend/app/pipeline/orchestrator.py` |
-| AI klepet (RAG) nad podatki — *bonus* | `backend/app/pipeline/chat.py` + `backend/app/routers/chat.py` |
-
----
+| Web scraping | `backend/scraper/`, pajek `fei` |
+| Čiščenje HTML-a | `backend/scraper/scraper/pipelines.py` |
+| Normalizacija besedila | `backend/app/pipeline/cleaning.py` |
+| Chunking | `backend/app/pipeline/chunking.py` |
+| AI ekstrakcija metapodatkov | `backend/app/pipeline/extraction.py` |
+| Embeddingi | `backend/app/pipeline/embedding.py` |
+| Qdrant dostop | `backend/app/vector_store.py` |
+| Orkestracija pipelina | `backend/app/pipeline/orchestrator.py` |
+| AI klepet (RAG) | `backend/app/pipeline/chat.py`, `backend/app/routers/chat.py` |
+| Spletni vmesnik | `frontend/` |
 
 ## Predpogoji
 
-- **Docker Desktop** (Windows/Mac) oz. Docker Engine + Docker Compose (Linux).
-- **OpenAI API ključ** (za AI strukturiranje in embeddinge).
+- Docker Desktop oziroma Docker Engine z Docker Compose.
+- OpenAI API ključ za AI ekstrakcijo, embeddinge, semantično iskanje in AI klepet.
 
-Nič drugega ni treba nameščati — Python, Node ipd. tečejo znotraj kontejnerjev.
+OpenAI ključ ni potreben za sam zagon kontejnerjev. Brez njega lahko pipeline še
+vedno zajame strani in ustvari chunke, vendar ne bo ustvaril strukturirane
+organizacije, vektorjev, semantičnega iskanja ali RAG odgovorov.
 
----
+## Zagon z Docker Compose
 
-## Zagon
+V korenu projekta:
 
 ```bash
-# 1. Pripravi okoljske spremenljivke
-cp .env.example .env          # Linux/Mac
-# Copy-Item .env.example .env # Windows PowerShell
+cp .env.example .env
+```
 
-# 2. V .env vpiši svoj OpenAI ključ
-#    OPENAI_API_KEY=sk-...
+V Windows PowerShell:
 
-# 3. Zaženi vse
+```powershell
+Copy-Item .env.example .env
+```
+
+V datoteki `.env` zamenjaj placeholder:
+
+```env
+OPENAI_API_KEY=sk-...
+```
+
+Nato zaženi vse storitve:
+
+```bash
 docker compose up --build
 ```
 
-Ko se vse zažene, odpri:
+Za zagon v ozadju lahko uporabiš:
+
+```bash
+docker compose up --build -d
+```
+
+Uporabni naslovi po zagonu:
 
 | Storitev | Naslov |
 |---|---|
-| **Spletni vmesnik** | http://localhost:8081 |
-| Backend API (Swagger) | http://localhost:8000/docs |
-| Qdrant nadzorna plošča | http://localhost:6333/dashboard |
-| MySQL | `localhost:3307` (uporabnik `root`, geslo iz `.env`) |
+| Spletni vmesnik | http://localhost:8081 |
+| Backend Swagger dokumentacija | http://localhost:8000/docs |
+| Backend healthcheck | http://localhost:8000/api/health |
+| Qdrant dashboard | http://localhost:6333/dashboard |
+| MySQL | `localhost:3307`, uporabnik `root`, geslo iz `.env` |
 
----
+Ustavitev storitev:
 
-## Uporaba
+```bash
+docker compose down
+```
 
-1. V vmesniku odpri **Nadzorna plošča** → klikni **Zaženi zajem**
-   (prazno polje = privzeti testni vir **FEI UNM**; lahko vneseš poljuben URL).
-2. V realnem času spremljaj dnevnik in korake pipelina.
-3. **Organizacije** — strukturirani podatki iz MySQL + iskanje po ključnih besedah.
-4. **Iskanje** — preklopi med **semantičnim** (Qdrant, po pomenu) in
-   **klasičnim** (MySQL, po ključnih besedah) iskanjem.
-5. **AI klepet** — vprašanja v naravnem jeziku nad zajetimi podatki (RAG):
-   semantično pridobivanje relevantnih koščkov + generativni odgovor z
-   navedbo virov.
-6. **Zajete strani** — pregled očiščenega besedila in chunkov.
+Če želiš pobrisati tudi podatkovna volumna MySQL in Qdrant:
 
-> Vsak zagon obdela **eno spletno stran/domeno → eno organizacijo + N strani + M chunkov**.
-> Za več vrstic v tabeli organizacij poženi pipeline na več različnih spletnih straneh.
+```bash
+docker compose down -v
+```
 
----
+## Uporaba aplikacije
 
-## Konfiguracija (`.env`)
+1. Odpri http://localhost:8081.
+2. Na zavihku **Nadzorna plošča** vnesi URL in klikni **Zaženi zajem**.
+3. Če URL pustiš prazen, se uporabi privzeti testni vir `https://fei.uni-nm.si/`.
+4. Zajem ostane znotraj iste domene, spoštuje `robots.txt`, preskoči statične datoteke in uporablja omejitve iz `.env`.
+5. Po končanem zagonu preglej:
+   - **Organizacije**: strukturirani metapodatki iz MySQL,
+   - **Iskanje**: semantično iskanje prek Qdranta ali klasično iskanje po chunkih v MySQL,
+   - **AI klepet**: RAG odgovor na podlagi vektorsko najdenih chunkov,
+   - **Zajete strani**: očiščeno besedilo in ustvarjeni chunki.
+
+Vsak uspešen zagon poskusi ustvariti en zapis organizacije ter poljubno število
+zajetih strani in chunkov. Če AI ekstrakcija ne uspe, se strani in chunki vseeno
+shranijo.
+
+## Konfiguracija
+
+Spremenljivke so definirane v `.env.example` in jih Docker Compose posreduje
+kontejnerjem.
 
 | Spremenljivka | Privzeto | Opis |
 |---|---|---|
-| `OPENAI_API_KEY` | — | **obvezno** |
-| `OPENAI_MODEL` | `gpt-4o-mini` | LLM za strukturiranje |
+| `OPENAI_API_KEY` | `sk-...` | OpenAI API ključ. Placeholder zamenjaj z dejansko vrednostjo ali pusti prazno, če AI funkcij ne uporabljaš. |
+| `OPENAI_MODEL` | `gpt-4o-mini` | model za ekstrakcijo metapodatkov in AI klepet |
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | model za embeddinge |
-| `EMBEDDING_DIM` | `1536` | dimenzija vektorjev (uskladi z embedding modelom) |
-| `SCRAPE_MAX_PAGES` | `40` | največ zajetih strani na zagon |
-| `SCRAPE_MAX_DEPTH` | `2` | globina sledenja povezavam |
-| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1200` / `150` | velikost in prekrivanje chunkov |
+| `EMBEDDING_DIM` | `1536` | dimenzija vektorjev v Qdrantu; mora ustrezati embedding modelu |
+| `MYSQL_ROOT_PASSWORD` | `rootpass` | geslo uporabnika `root` v MySQL |
+| `MYSQL_DATABASE` | `companiesdb` | ime MySQL baze |
+| `MYSQL_PORT` | `3307` | vrata MySQL na gostitelju |
+| `QDRANT_HTTP_PORT` | `6333` | vrata Qdrant HTTP API in dashboarda na gostitelju |
+| `QDRANT_COLLECTION` | `company_chunks` | ime Qdrant kolekcije |
+| `BACKEND_PORT` | `8000` | vrata FastAPI backenda na gostitelju |
+| `FRONTEND_PORT` | `8081` | vrata spletnega vmesnika na gostitelju |
+| `SCRAPE_MAX_PAGES` | `40` | največ zajetih strani na en zagon |
+| `SCRAPE_MAX_DEPTH` | `2` | največja globina sledenja povezavam |
+| `CHUNK_SIZE` | `1200` | ciljna velikost chunka v znakih |
+| `CHUNK_OVERLAP` | `150` | prekrivanje med sosednjimi chunki v znakih |
 
----
+Backend znotraj Docker omrežja uporablja `MYSQL_HOST=mysql`, `MYSQL_PORT=3306`
+in `QDRANT_URL=http://qdrant:6333`; teh vrednosti pri običajnem Compose zagonu
+ni treba nastavljati v `.env`.
+
+## API poti
+
+Najbolj uporabne poti:
+
+| Metoda | Pot | Namen |
+|---|---|---|
+| `GET` | `/api/health` | preverjanje delovanja backenda |
+| `GET` | `/api/stats` | agregirana statistika za nadzorno ploščo |
+| `POST` | `/api/pipeline/run` | zagon pipelina, telo: `{ "url": "https://..." }` ali `{ "url": null }` |
+| `GET` | `/api/pipeline/latest` | zadnji zagon |
+| `GET` | `/api/pipeline/runs/{run_id}` | podrobnosti zagona z dnevnikom |
+| `GET` | `/api/organizations` | seznam organizacij, opcijsko `?q=...` |
+| `GET` | `/api/pages` | seznam zajetih strani |
+| `GET` | `/api/pages/{page_id}` | očiščeno besedilo strani |
+| `GET` | `/api/pages/{page_id}/chunks` | chunki strani |
+| `GET` | `/api/search/keyword?q=...` | iskanje po ključnih besedah v MySQL |
+| `GET` | `/api/search/semantic?q=...` | semantično iskanje v Qdrantu |
+| `POST` | `/api/chat` | AI klepet nad zajetimi podatki |
+
+## Lokalni razvoj
+
+Docker Compose je priporočena pot. Če želiš poganjati frontend in backend
+lokalno, najprej zaženi samo bazi:
+
+```bash
+docker compose up -d mysql qdrant
+```
+
+Backend:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:MYSQL_HOST="localhost"
+$env:MYSQL_PORT="3307"
+$env:QDRANT_URL="http://localhost:6333"
+$env:OPENAI_API_KEY="sk-..."
+uvicorn app.main:app --reload
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Vite teče na http://localhost:5173 in ima proxy za `/api` na
+http://localhost:8000.
 
 ## Pogoste težave
 
-- **Backend se ne zažene takoj** — počaka, da je MySQL pripravljen (healthcheck);
-  prvi zagon traja dlje zaradi gradnje slik.
-- **AI ekstrakcija / embeddingi ne delujejo** — preveri `OPENAI_API_KEY` v `.env`.
-  Pipeline se v tem primeru vseeno izvede (strani in chunki se shranijo), le brez
-  strukturiranja in vektorjev.
-- **Zajem vrne 0 strani** — ciljna stran morda prepoveduje strganje v `robots.txt`.
-  Privzeto ga spoštujemo (`ROBOTSTXT_OBEY = True` v
-  `backend/scraper/scraper/settings.py`).
-- **Spreminjanje embedding modela** — če zamenjaš na npr. `text-embedding-3-large`,
-  nastavi `EMBEDDING_DIM=3072` in pobriši Qdrant volumen
-  (`docker compose down -v`).
-
----
+- **Backend se ne odpre takoj**: prvi zagon traja dlje zaradi gradnje slik in
+  čakanja na MySQL healthcheck.
+- **AI ekstrakcija, semantično iskanje ali klepet ne delujejo**: preveri, ali je
+  `OPENAI_API_KEY` nastavljen na dejanski ključ in ne na `sk-...`.
+- **Zajem vrne 0 uporabnih strani**: ciljna stran lahko blokira crawler,
+  prepoveduje zajem z `robots.txt`, vrača premalo besedila ali potrebuje
+  JavaScript renderiranje, ki ga ta Scrapy crawler ne izvaja.
+- **Po menjavi embedding modela dobivaš napake v Qdrantu**: uskladi
+  `EMBEDDING_DIM` z novim modelom in ponovno ustvari Qdrant volumen z
+  `docker compose down -v`.
 
 ## Struktura projekta
 
-```
+```text
 .
-├── docker-compose.yml        # orkestracija vseh storitev
 ├── .env.example
+├── docker-compose.yml
 ├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt
 │   ├── app/
-│   │   ├── main.py           # FastAPI vstopna točka
-│   │   ├── config.py db.py models.py schemas.py vector_store.py openai_client.py
-│   │   ├── pipeline/         # cleaning, chunking, extraction, embedding, chat, orchestrator
-│   │   └── routers/          # pipeline, organizations, pages, search, chat, meta
-│   └── scraper/              # Scrapy projekt (web scraping, pajek "fei")
-└── frontend/                 # React + Vite + Tailwind (nginx)
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── vector_store.py
+│   │   ├── pipeline/
+│   │   └── routers/
+│   └── scraper/
+│       ├── scrapy.cfg
+│       └── scraper/
+└── frontend/
+    ├── Dockerfile
+    ├── nginx.conf
+    ├── package.json
+    ├── vite.config.js
+    └── src/
 ```
