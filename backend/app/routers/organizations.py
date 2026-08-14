@@ -1,8 +1,8 @@
 """Endpointi za pregled strukturiranih podatkov o organizacijah (MySQL)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_, select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -13,9 +13,38 @@ router = APIRouter(prefix="/api/organizations", tags=["organizations"])
 
 
 @router.get("", response_model=list[OrganizationOut])
-def list_organizations(q: str | None = None, limit: int = 100, db: Session = Depends(get_db)):
-    """Seznam organizacij; z 'q' iskanje po imenu/panogi/dejavnosti/povzetku."""
-    stmt = select(Organization).order_by(Organization.created_at.desc())
+def list_organizations(
+    q: str | None = None,
+    limit: int = Query(100, ge=1, le=500),
+    include_history: bool = False,
+    db: Session = Depends(get_db),
+):
+    """Seznam zadnjih različic organizacij; po želji tudi celotna zgodovina."""
+    if include_history:
+        stmt = select(Organization)
+    else:
+        ranked_versions = (
+            select(
+                Organization.id.label("organization_id"),
+                func.row_number()
+                .over(
+                    partition_by=func.lower(Organization.source_url),
+                    order_by=(Organization.created_at.desc(), Organization.id.desc()),
+                )
+                .label("version_rank"),
+            )
+            .subquery()
+        )
+        stmt = (
+            select(Organization)
+            .join(
+                ranked_versions,
+                ranked_versions.c.organization_id == Organization.id,
+            )
+            .where(ranked_versions.c.version_rank == 1)
+        )
+
+    q = q.strip() if q else None
     if q:
         like = f"%{q}%"
         stmt = stmt.where(
@@ -27,7 +56,7 @@ def list_organizations(q: str | None = None, limit: int = 100, db: Session = Dep
                 Organization.ceo.like(like),
             )
         )
-    stmt = stmt.limit(limit)
+    stmt = stmt.order_by(Organization.created_at.desc(), Organization.id.desc()).limit(limit)
     return list(db.scalars(stmt).all())
 
 
