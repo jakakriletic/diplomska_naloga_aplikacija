@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from urllib.parse import quote_plus
 
 
 def _int(name: str, default: int) -> int:
@@ -12,7 +13,18 @@ def _int(name: str, default: int) -> int:
         return default
 
 
+def _csv(name: str, default: str) -> list[str]:
+    return [value.strip() for value in os.getenv(name, default).split(",") if value.strip()]
+
+
 class Settings:
+    # --- HTTP ---
+    CORS_ORIGINS: list[str] = _csv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:8081,http://127.0.0.1:8081",
+    )
+
     # --- MySQL (relacijska baza) ---
     MYSQL_HOST: str = os.getenv("MYSQL_HOST", "mysql")
     MYSQL_PORT: int = _int("MYSQL_PORT", 3306)
@@ -42,7 +54,7 @@ class Settings:
     @property
     def database_url(self) -> str:
         return (
-            f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}"
+            f"mysql+pymysql://{quote_plus(self.MYSQL_USER)}:{quote_plus(self.MYSQL_PASSWORD)}"
             f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}?charset=utf8mb4"
         )
 

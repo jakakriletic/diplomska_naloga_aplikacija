@@ -64,20 +64,20 @@ export default function App() {
       </aside>
 
       {/* Glavna vsebina */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Glava */}
-        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 px-6 py-4 backdrop-blur">
-          <div className="flex items-center justify-between">
+        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
+          <div className="flex min-w-0 items-center justify-between gap-2">
             <div>
-              <h1 className="text-xl font-bold text-slate-800">{activeLabel}</h1>
+              <h1 className="text-lg font-bold text-slate-800 sm:text-xl">{activeLabel}</h1>
             </div>
             {/* Mobilna navigacija */}
-            <nav className="flex gap-1 lg:hidden">
+            <nav className="flex shrink-0 gap-0.5 lg:hidden">
               {NAV.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setActive(item.id)}
-                  className={`rounded-lg p-2 ${
+                  className={`rounded-lg p-1.5 sm:p-2 ${
                     active === item.id ? "bg-indigo-50 text-indigo-600" : "text-slate-500"
                   }`}
                   title={item.label}
@@ -89,7 +89,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 p-6">
+        <main className="mx-auto min-w-0 w-full max-w-6xl flex-1 p-4 sm:p-6">
           <Current />
         </main>
       </div>

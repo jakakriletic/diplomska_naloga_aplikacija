@@ -8,9 +8,10 @@ Zagon (orkestrator):
     scrapy crawl fei -a start_url=https://fei.uni-nm.si/ -a max_depth=2 \
         -s CLOSESPIDER_PAGECOUNT=40 -O output/run_<id>.json
 """
+from urllib.parse import urlparse
+
 import scrapy
 from scrapy.http import TextResponse
-from urllib.parse import urlparse
 
 from .keywords import KEYWORDS
 
@@ -33,7 +34,7 @@ class FeiSpider(scrapy.Spider):
         start_url = start_url or "https://fei.uni-nm.si/"
         self.start_urls = [start_url]
 
-        domain = urlparse(start_url).netloc.lower()
+        domain = (urlparse(start_url).hostname or "").lower()
         if domain.startswith("www."):
             domain = domain[4:]
         self.allowed_domains = [domain] if domain else []

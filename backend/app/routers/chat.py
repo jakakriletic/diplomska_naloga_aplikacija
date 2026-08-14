@@ -5,13 +5,16 @@ Poveže semantično iskanje (pridobivanje koščkov) z generativnim modelom
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 
+from .. import vector_store
 from ..pipeline import chat, embedding
 from ..schemas import ChatRequest, ChatResponse, ChatSource
-from .. import vector_store
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=ChatResponse)
@@ -24,14 +27,19 @@ def ask(body: ChatRequest):
     try:
         query_vector = embedding.embed_query(question)
     except Exception as exc:  # noqa: BLE001
+        logger.warning("Embedding vprašanja za klepet ni uspel: %s", exc)
         raise HTTPException(
             status_code=503,
-            detail=f"Embedding poizvedbe ni uspel (preveri OPENAI_API_KEY): {exc}",
-        )
+            detail="AI klepet trenutno ni na voljo. Preveri OpenAI kvoto in nastavitve.",
+        ) from exc
     try:
         hits = vector_store.search(query_vector, limit=body.limit)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"Iskanje v Qdrant ni uspelo: {exc}")
+        logger.warning("Iskanje konteksta v Qdrant ni uspelo: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Virov za odgovor trenutno ni mogoče poiskati.",
+        ) from exc
 
     if not hits:
         return ChatResponse(
@@ -46,7 +54,11 @@ def ask(body: ChatRequest):
     try:
         answer = chat.generate_answer(question, hits)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"Generiranje odgovora ni uspelo: {exc}")
+        logger.warning("Generiranje odgovora ni uspelo: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="AI odgovora trenutno ni mogoče ustvariti.",
+        ) from exc
 
     sources = [
         ChatSource(

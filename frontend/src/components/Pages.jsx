@@ -1,31 +1,63 @@
 import React, { useEffect, useState } from "react";
-import { FileText, Layers, ExternalLink, ArrowLeft } from "lucide-react";
+import {
+  FileText,
+  ExternalLink,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { api } from "../api";
-import { Card, Badge, Spinner, Empty } from "./ui";
+import { Card, Badge, Button, Spinner, Empty } from "./ui";
+
+const PAGE_SIZE = 50;
 
 function PageDetail({ pageId, onBack }) {
   const [tab, setTab] = useState("text"); // 'text' | 'chunks'
   const [page, setPage] = useState(null);
   const [chunks, setChunks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
+      setError(null);
       try {
         const [p, c] = await Promise.all([api.page(pageId), api.pageChunks(pageId)]);
-        setPage(p);
-        setChunks(c);
+        if (!cancelled) {
+          setPage(p);
+          setChunks(c);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [pageId]);
 
   if (loading)
     return (
       <div className="flex justify-center py-16">
         <Spinner className="h-6 w-6 text-indigo-500" />
+      </div>
+    );
+  if (error)
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600"
+        >
+          <ArrowLeft className="h-4 w-4" /> Nazaj na seznam
+        </button>
+        <Card className="p-4">
+          <p className="text-sm text-red-600">{error}</p>
+        </Card>
       </div>
     );
   if (!page) return null;
@@ -101,17 +133,34 @@ export default function Pages() {
   const [pages, setPages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [offset, setOffset] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
+      setError(null);
       try {
-        setPages(await api.pages());
+        const [items, stats] = await Promise.all([
+          api.pages(PAGE_SIZE, offset),
+          api.stats(),
+        ]);
+        if (!cancelled) {
+          setPages(items);
+          setTotal(stats.pages);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [offset]);
 
   if (selected) return <PageDetail pageId={selected} onBack={() => setSelected(null)} />;
 
@@ -120,6 +169,13 @@ export default function Pages() {
       <div className="flex justify-center py-16">
         <Spinner className="h-6 w-6 text-indigo-500" />
       </div>
+    );
+
+  if (error)
+    return (
+      <Card className="p-4">
+        <p className="text-sm text-red-600">{error}</p>
+      </Card>
     );
 
   if (pages.length === 0)
@@ -138,15 +194,19 @@ export default function Pages() {
         <p className="text-sm text-slate-500">
           Spletne strani, ki jih je zajel in očistil modul za web scraping. Klikni za podrobnosti in chunke.
         </p>
+        <p className="mt-2 text-xs font-medium text-slate-400">
+          Prikaz {offset + 1}–{Math.min(offset + pages.length, total)} od {total}
+        </p>
       </Card>
       {pages.map((p) => (
         <Card
           key={p.id}
-          className="cursor-pointer p-4 transition hover:border-indigo-200 hover:shadow-md"
+          className="transition hover:border-indigo-200 hover:shadow-md"
         >
-          <div
+          <button
+            type="button"
             onClick={() => setSelected(p.id)}
-            className="flex items-center justify-between gap-4"
+            className="flex w-full min-w-0 items-center justify-between gap-4 p-4 text-left"
           >
             <div className="flex min-w-0 items-center gap-3">
               <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
@@ -158,9 +218,31 @@ export default function Pages() {
               <Badge color="slate">globina {p.depth}</Badge>
               <Badge color="blue">{p.char_count} z.</Badge>
             </div>
-          </div>
+          </button>
         </Card>
       ))}
+
+      {total > PAGE_SIZE && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <Button
+            variant="ghost"
+            disabled={offset === 0}
+            onClick={() => setOffset((value) => Math.max(0, value - PAGE_SIZE))}
+          >
+            <ChevronLeft className="h-4 w-4" /> Prejšnja
+          </Button>
+          <span className="text-sm font-medium text-slate-500">
+            Stran {Math.floor(offset / PAGE_SIZE) + 1} od {Math.ceil(total / PAGE_SIZE)}
+          </span>
+          <Button
+            variant="ghost"
+            disabled={offset + PAGE_SIZE >= total}
+            onClick={() => setOffset((value) => value + PAGE_SIZE)}
+          >
+            Naslednja <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

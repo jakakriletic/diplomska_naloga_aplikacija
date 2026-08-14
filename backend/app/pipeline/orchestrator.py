@@ -22,11 +22,13 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from sqlalchemy import select
+
+from .. import vector_store
 from ..config import settings
 from ..db import SessionLocal
 from ..models import Chunk, Organization, Page, PipelineRun
 from . import chunking, cleaning, embedding, extraction
-from .. import vector_store
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,13 @@ logger = logging.getLogger(__name__)
 SCRAPER_DIR = Path(__file__).resolve().parents[2] / "scraper"
 SUBPROCESS_TIMEOUT = 600  # 10 minut
 MIN_PAGE_CHARS = 50
+_start_lock = threading.Lock()
+
+
+class ActiveRunError(RuntimeError):
+    def __init__(self, run_id: str):
+        super().__init__(f"Obdelava že poteka ({run_id}).")
+        self.run_id = run_id
 
 
 # ---------------------------------------------------------------------------
@@ -41,20 +50,82 @@ MIN_PAGE_CHARS = 50
 # ---------------------------------------------------------------------------
 def start_run(url: str | None = None) -> str:
     """Ustvari zapis o zagonu in v ozadju zažene celoten pipeline."""
-    run_id = str(uuid.uuid4())
-    source_url = (url or settings.DEFAULT_START_URL).strip()
+    with _start_lock:
+        run_id = str(uuid.uuid4())
+        source_url = (url or settings.DEFAULT_START_URL).strip()
 
+        db = SessionLocal()
+        try:
+            active_run_id = db.scalar(
+                select(PipelineRun.id)
+                .where(PipelineRun.status.in_(("pending", "running")))
+                .limit(1)
+            )
+            if active_run_id:
+                raise ActiveRunError(active_run_id)
+
+            run = PipelineRun(id=run_id, status="pending", source_url=source_url)
+            db.add(run)
+            db.commit()
+        finally:
+            db.close()
+
+        thread = threading.Thread(target=_execute_run, args=(run_id, source_url), daemon=True)
+        thread.start()
+    return run_id
+
+
+def mark_interrupted_runs() -> int:
+    """Ob zagonu aplikacije zaključi opravila, katerih delovna nit je izginila."""
     db = SessionLocal()
     try:
-        run = PipelineRun(id=run_id, status="pending", source_url=source_url)
-        db.add(run)
-        db.commit()
+        runs = list(
+            db.scalars(
+                select(PipelineRun).where(PipelineRun.status.in_(("pending", "running")))
+            ).all()
+        )
+        for run in runs:
+            message = "Obdelava je bila prekinjena zaradi ponovnega zagona backenda."
+            run.status = "failed"
+            run.error = message
+            run.finished_at = datetime.now()
+            run.log = f"{run.log}\n[NAPAKA] {message}" if run.log else f"[NAPAKA] {message}"
+        if runs:
+            db.commit()
+        return len(runs)
     finally:
         db.close()
 
-    thread = threading.Thread(target=_execute_run, args=(run_id, source_url), daemon=True)
-    thread.start()
-    return run_id
+
+def mark_legacy_warning_runs() -> int:
+    """Uskladi stare zaključene zagone, ki so v dnevniku že imeli opozorila."""
+    db = SessionLocal()
+    try:
+        runs = list(
+            db.scalars(
+                select(PipelineRun).where(
+                    PipelineRun.status.in_(("completed", "partial")),
+                    PipelineRun.log.like("%OPOZORILO:%"),
+                )
+            ).all()
+        )
+        changed = 0
+        for run in runs:
+            if run.status != "partial":
+                run.status = "partial"
+                changed += 1
+            updated_log = (run.log or "").replace(
+                "Pipeline uspešno zaključen.",
+                "Pipeline zaključen z opozorili (starejši zagon).",
+            )
+            if updated_log != run.log:
+                run.log = updated_log
+                changed += 1
+        if changed:
+            db.commit()
+        return changed
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -93,27 +164,28 @@ def _run_scrapy(run_id: str, url: str, log: _Logger) -> list[dict]:
     ]
     log.log(f"Zaganjam zajem (scrapy): {url} (max {settings.SCRAPE_MAX_PAGES} strani, globina {settings.SCRAPE_MAX_DEPTH})")
 
-    proc = subprocess.run(
-        cmd,
-        cwd=str(SCRAPER_DIR),
-        capture_output=True,
-        text=True,
-        timeout=SUBPROCESS_TIMEOUT,
-    )
-
-    if not output_abs.exists():
-        tail = (proc.stderr or "")[-800:]
-        raise RuntimeError(f"Scrapy ni ustvaril izhoda. Napaka:\n{tail}")
-
-    with open(output_abs, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
     try:
-        output_abs.unlink()
-    except OSError:
-        pass
+        proc = subprocess.run(
+            cmd,
+            cwd=str(SCRAPER_DIR),
+            capture_output=True,
+            text=True,
+            timeout=SUBPROCESS_TIMEOUT,
+        )
+        if proc.returncode != 0:
+            tail = (proc.stderr or "")[-800:]
+            raise RuntimeError(f"Scrapy se je zaključil z napako:\n{tail}")
+        if not output_abs.exists():
+            raise RuntimeError("Scrapy ni ustvaril izhodne datoteke.")
 
-    return data if isinstance(data, list) else []
+        with open(output_abs, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        return data if isinstance(data, list) else []
+    finally:
+        try:
+            output_abs.unlink()
+        except OSError:
+            pass
 
 
 def _dedupe_pages(raw_pages: list[dict]) -> list[dict]:
@@ -147,6 +219,7 @@ def _execute_run(run_id: str, url: str) -> None:
         run.status = "running"
         db.commit()
         log = _Logger(db, run)
+        warnings: list[str] = []
 
         # --- 1. ZAJEM ---
         raw_pages = _run_scrapy(run_id, url, log)
@@ -183,7 +256,9 @@ def _execute_run(run_id: str, url: str) -> None:
             db.commit()
             log.log(f"Strukturirano: {org_name} (panoga: {org.industry or 'n/a'})")
         except Exception as exc:  # noqa: BLE001
-            log.log(f"OPOZORILO: AI ekstrakcija ni uspela: {exc}")
+            warning = f"AI ekstrakcija ni uspela: {exc}"
+            warnings.append(warning)
+            log.log(f"OPOZORILO: {warning}")
 
         # --- 3. CHUNKING -> shranjevanje (relacijska baza) ---
         log.log("Razdeljevanje besedila na chunke ...")
@@ -213,6 +288,10 @@ def _execute_run(run_id: str, url: str) -> None:
             try:
                 log.log(f"Tvorba embeddingov (model: {settings.OPENAI_EMBEDDING_MODEL}) ...")
                 vectors = embedding.embed_texts(chunk_texts)
+                if len(vectors) != len(chunk_objs):
+                    raise RuntimeError(
+                        f"Prejetih je bilo {len(vectors)} vektorjev za {len(chunk_objs)} chunkov."
+                    )
                 points = []
                 for chunk, vector in zip(chunk_objs, vectors):
                     points.append({
@@ -230,13 +309,18 @@ def _execute_run(run_id: str, url: str) -> None:
                 vector_store.upsert_chunks(points)
                 log.log(f"Shranjenih vektorjev v Qdrant: {len(points)}")
             except Exception as exc:  # noqa: BLE001
-                log.log(f"OPOZORILO: Vektorizacija ni uspela: {exc}")
+                warning = f"Vektorizacija ni uspela: {exc}"
+                warnings.append(warning)
+                log.log(f"OPOZORILO: {warning}")
 
         # --- zaključek ---
-        run.status = "completed"
+        run.status = "partial" if warnings else "completed"
         run.finished_at = datetime.now()
         db.commit()
-        log.log("Pipeline uspešno zaključen.")
+        if warnings:
+            log.log(f"Pipeline zaključen z opozorili ({len(warnings)}).")
+        else:
+            log.log("Pipeline uspešno zaključen.")
 
     except Exception as exc:  # noqa: BLE001
         logger.exception("Napaka v pipelinu")

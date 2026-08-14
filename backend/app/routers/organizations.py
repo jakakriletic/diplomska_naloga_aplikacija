@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Organization
+from ..queries import latest_organization_versions
 from ..schemas import OrganizationOut
 
 router = APIRouter(prefix="/api/organizations", tags=["organizations"])
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/api/organizations", tags=["organizations"])
 
 @router.get("", response_model=list[OrganizationOut])
 def list_organizations(
-    q: str | None = None,
+    q: str | None = Query(None, max_length=500),
     limit: int = Query(100, ge=1, le=500),
     include_history: bool = False,
     db: Session = Depends(get_db),
@@ -23,18 +24,7 @@ def list_organizations(
     if include_history:
         stmt = select(Organization)
     else:
-        ranked_versions = (
-            select(
-                Organization.id.label("organization_id"),
-                func.row_number()
-                .over(
-                    partition_by=func.lower(Organization.source_url),
-                    order_by=(Organization.created_at.desc(), Organization.id.desc()),
-                )
-                .label("version_rank"),
-            )
-            .subquery()
-        )
+        ranked_versions = latest_organization_versions()
         stmt = (
             select(Organization)
             .join(

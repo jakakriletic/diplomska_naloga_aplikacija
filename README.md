@@ -109,6 +109,24 @@ npm run dev
 Frontend pri lokalnem razvoju tece na http://localhost:5173 in posilja API
 zahtevke na backend na http://localhost:8000.
 
+## Preverjanje kode
+
+Backend (iz korena projekta):
+
+```powershell
+$env:PYTHONPATH="backend"
+py -3 -m unittest discover -s backend/tests
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run lint
+npm test
+npm run build
+```
+
 ## Glavne nastavitve
 
 Nastavitve so v `.env`. Najbolj uporabne:
@@ -117,6 +135,8 @@ Nastavitve so v `.env`. Najbolj uporabne:
 - `MYSQL_PORT`: privzeto `3307`
 - `BACKEND_PORT`: privzeto `8000`
 - `FRONTEND_PORT`: privzeto `8081`
+- `BIND_HOST`: privzeto `127.0.0.1`, zato storitve niso izpostavljene lokalnemu omrežju
+- `CORS_ORIGINS`: dovoljeni naslovi frontenda, ločeni z vejico
 - `SCRAPE_MAX_PAGES`: najvec zajetih strani na en zagon
 - `SCRAPE_MAX_DEPTH`: najvecja globina sledenja povezavam
 

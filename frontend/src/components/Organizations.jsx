@@ -50,7 +50,7 @@ export default function Organizations() {
           Metapodatki, ki jih je iz besedila izluščila generativna UI in shranila v MySQL.
           Iskanje deluje po imenu, panogi, dejavnosti, vodstvu in povzetku.
         </p>
-        <form onSubmit={onSubmit} className="flex gap-3">
+        <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -86,12 +86,12 @@ export default function Organizations() {
           {items.map((org) => (
             <Card key={org.id} className="p-6">
               <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 p-2.5 text-white">
                     <Building2 className="h-5 w-5" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800">{org.name}</h3>
+                  <div className="min-w-0">
+                    <h3 className="break-words font-bold text-slate-800">{org.name}</h3>
                     {org.industry && <Badge color="violet">{org.industry}</Badge>}
                   </div>
                 </div>
@@ -99,7 +99,7 @@ export default function Organizations() {
                   href={org.source_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-slate-400 hover:text-indigo-500"
+                  className="shrink-0 text-slate-400 hover:text-indigo-500"
                   title="Odpri vir"
                 >
                   <ExternalLink className="h-4 w-4" />
@@ -110,7 +110,7 @@ export default function Organizations() {
                 <p className="mb-4 text-sm leading-relaxed text-slate-600">{org.summary}</p>
               )}
 
-              <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+              <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
                 <Field label={<><User className="mr-1 inline h-3 w-3" />Vodstvo</>}>{org.ceo}</Field>
                 <Field label={<><Calendar className="mr-1 inline h-3 w-3" />Ustanovljeno</>}>{org.founded_year}</Field>
                 <Field label={<><Factory className="mr-1 inline h-3 w-3" />Dejavnost</>}>{org.main_activity}</Field>

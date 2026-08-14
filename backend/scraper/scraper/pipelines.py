@@ -4,8 +4,8 @@ Iz surove HTML kode odstrani nepotrebne elemente (navigacija, noga, skripte,
 piškotki, prijavni/iskalni obrazci, družbena omrežja ...) in vrne le smiselno
 besedilno vsebino, primerno za nadaljnjo obdelavo (chunking + AI).
 """
-from itemadapter import ItemAdapter
 from bs4 import BeautifulSoup
+from itemadapter import ItemAdapter
 
 # Strukturni elementi, ki praviloma ne vsebujejo vsebinskih podatkov
 STRIP_TAGS = [

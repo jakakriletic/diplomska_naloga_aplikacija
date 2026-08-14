@@ -1,7 +1,7 @@
 """Endpointi za pregled zajetih strani in njihovih chunkov."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -13,11 +13,16 @@ router = APIRouter(prefix="/api/pages", tags=["pages"])
 
 
 @router.get("", response_model=list[PageOut])
-def list_pages(run_id: str | None = None, limit: int = 200, db: Session = Depends(get_db)):
+def list_pages(
+    run_id: str | None = None,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
     stmt = select(Page).order_by(Page.id.desc())
     if run_id:
         stmt = stmt.where(Page.run_id == run_id)
-    stmt = stmt.limit(limit)
+    stmt = stmt.offset(offset).limit(limit)
     return list(db.scalars(stmt).all())
 
 
@@ -31,5 +36,7 @@ def get_page(page_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{page_id}/chunks", response_model=list[ChunkOut])
 def get_page_chunks(page_id: int, db: Session = Depends(get_db)):
+    if db.get(Page, page_id) is None:
+        raise HTTPException(status_code=404, detail="Stran ni najdena.")
     stmt = select(Chunk).where(Chunk.page_id == page_id).order_by(Chunk.chunk_index)
     return list(db.scalars(stmt).all())

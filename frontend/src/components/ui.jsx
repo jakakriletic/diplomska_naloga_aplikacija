@@ -60,6 +60,7 @@ export function Badge({ children, color = "slate" }) {
 export function StatusBadge({ status }) {
   const map = {
     completed: ["green", "Zaključeno"],
+    partial: ["amber", "Zaključeno z opozorili"],
     running: ["blue", "V teku"],
     pending: ["amber", "Čaka"],
     failed: ["red", "Napaka"],
@@ -92,7 +93,7 @@ export function Field({ label, children }) {
       <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </label>
-      <div className="text-sm text-slate-700">{children || "—"}</div>
+      <div className="break-words text-sm text-slate-700">{children || "—"}</div>
     </div>
   );
 }

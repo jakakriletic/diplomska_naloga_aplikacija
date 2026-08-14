@@ -162,7 +162,7 @@ export default function Chat() {
         </div>
 
         {/* Vnos */}
-        <form onSubmit={onSubmit} className="flex gap-3 border-t border-slate-200 p-4">
+        <form onSubmit={onSubmit} className="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}

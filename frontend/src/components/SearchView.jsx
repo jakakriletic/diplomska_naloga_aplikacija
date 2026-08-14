@@ -42,6 +42,13 @@ export default function SearchView() {
   const [error, setError] = useState(null);
   const [searched, setSearched] = useState(false);
 
+  function changeMode(nextMode) {
+    setMode(nextMode);
+    setResults([]);
+    setError(null);
+    setSearched(false);
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
     if (!q.trim()) return;
@@ -70,9 +77,9 @@ export default function SearchView() {
         </p>
 
         {/* Preklop načina */}
-        <div className="mb-4 inline-flex rounded-xl bg-slate-100 p-1">
+        <div className="mb-4 flex w-full flex-col rounded-xl bg-slate-100 p-1 sm:w-auto sm:flex-row">
           <button
-            onClick={() => setMode("semantic")}
+            onClick={() => changeMode("semantic")}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
               mode === "semantic" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500"
             }`}
@@ -80,7 +87,7 @@ export default function SearchView() {
             <Sparkles className="h-4 w-4" /> Semantično (Qdrant)
           </button>
           <button
-            onClick={() => setMode("keyword")}
+            onClick={() => changeMode("keyword")}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
               mode === "keyword" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500"
             }`}
@@ -89,7 +96,7 @@ export default function SearchView() {
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="flex gap-3">
+        <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input

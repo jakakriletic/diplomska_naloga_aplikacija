@@ -26,14 +26,14 @@ const STAGES = [
 
 function StatCard({ icon: Icon, label, value, accent }) {
   return (
-    <Card className="p-5">
-      <div className="flex items-center gap-4">
-        <div className={`rounded-xl p-3 ${accent}`}>
+    <Card className="min-w-0 p-4 sm:p-5">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <div className={`shrink-0 rounded-xl p-2.5 sm:p-3 ${accent}`}>
           <Icon className="h-5 w-5" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-2xl font-bold text-slate-800">{value ?? "—"}</p>
-          <p className="text-sm text-slate-500">{label}</p>
+          <p className="break-words text-sm text-slate-500">{label}</p>
         </div>
       </div>
     </Card>
@@ -55,6 +55,7 @@ export default function Dashboard() {
       const [s, latest] = await Promise.all([api.stats(), api.latestRun()]);
       setStats(s);
       if (latest) setRun(latest);
+      setError(null);
     } catch (e) {
       setError(e.message);
     }
@@ -90,7 +91,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Statistika */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 min-[360px]:grid-cols-2 lg:grid-cols-5">
         <StatCard icon={Play} label="Zagoni" value={stats?.runs} accent="bg-indigo-100 text-indigo-600" />
         <StatCard icon={Building2} label="Organizacije" value={stats?.organizations} accent="bg-violet-100 text-violet-600" />
         <StatCard icon={FileText} label="Strani" value={stats?.pages} accent="bg-blue-100 text-blue-600" />
@@ -107,7 +108,7 @@ export default function Dashboard() {
             testni vir (FEI UNM).
           </p>
         </div>
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <div className="mt-4 flex min-w-0 flex-col gap-3 sm:flex-row">
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}

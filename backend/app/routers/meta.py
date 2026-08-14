@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..db import get_db
-from ..models import Chunk, Organization, Page, PipelineRun
-from ..schemas import RunSummary, Stats
 from .. import vector_store
+from ..db import get_db
+from ..models import Chunk, Page, PipelineRun
+from ..queries import organization_domain_key
+from ..schemas import RunSummary, Stats
 
 router = APIRouter(prefix="/api", tags=["meta"])
 
@@ -16,7 +17,9 @@ router = APIRouter(prefix="/api", tags=["meta"])
 @router.get("/stats", response_model=Stats)
 def get_stats(db: Session = Depends(get_db)):
     runs = db.scalar(select(func.count(PipelineRun.id))) or 0
-    organizations = db.scalar(select(func.count(Organization.id))) or 0
+    organizations = db.scalar(
+        select(func.count(func.distinct(organization_domain_key())))
+    ) or 0
     pages = db.scalar(select(func.count(Page.id))) or 0
     chunks = db.scalar(select(func.count(Chunk.id))) or 0
     last_run = db.scalars(

@@ -10,7 +10,11 @@ async function request(path, options = {}) {
     let detail = res.statusText;
     try {
       const body = await res.json();
-      detail = body.detail || detail;
+      if (typeof body.detail === "string") {
+        detail = body.detail;
+      } else if (body.detail) {
+        detail = JSON.stringify(body.detail);
+      }
     } catch {
       /* ignore */
     }
@@ -39,7 +43,8 @@ export const api = {
     request(`/api/organizations${q ? `?q=${encodeURIComponent(q)}` : ""}`),
 
   // Strani
-  pages: () => request("/api/pages"),
+  pages: (limit = 50, offset = 0) =>
+    request(`/api/pages?limit=${limit}&offset=${offset}`),
   page: (id) => request(`/api/pages/${id}`),
   pageChunks: (id) => request(`/api/pages/${id}/chunks`),
 
