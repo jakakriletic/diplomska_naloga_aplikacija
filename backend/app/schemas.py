@@ -71,6 +71,9 @@ def validate_public_http_url(value: str | None) -> str | None:
 class RunRequest(BaseModel):
     """Zahteva za zagon pipelina. Brez URL-ja se uporabi privzeti vir (FEI)."""
     url: str | None = None
+    max_depth: int | None = Field(default=None, ge=0, le=5)
+    max_pages: int | None = Field(default=None, ge=1, le=200)
+    chunk_size: int | None = Field(default=None, ge=300, le=4000)
 
     @field_validator("url")
     @classmethod

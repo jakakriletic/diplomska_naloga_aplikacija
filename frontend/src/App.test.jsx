@@ -35,7 +35,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
   api.stats.mockResolvedValue(stats);
-  api.latestRun.mockResolvedValue({
+  const latestRun = {
     id: "run-1",
     status: "partial",
     source_url: "https://example.com/",
@@ -44,7 +44,9 @@ beforeEach(() => {
     organizations_extracted: 0,
     error: null,
     log: "Prva vrstica\nPipeline zaključen z opozorili (1).",
-  });
+  };
+  api.latestRun.mockResolvedValue(latestRun);
+  api.runPipeline.mockResolvedValue(latestRun);
   api.organizations.mockResolvedValue([]);
   api.pages.mockImplementation((_limit, offset, _scope) =>
     Promise.resolve([
@@ -98,5 +100,28 @@ describe("App", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Organizacije" })[0]);
     await waitFor(() => expect(api.organizations).toHaveBeenCalledWith("", "all"));
+  });
+
+  it("pošlje nastavitve naslednjega zajema", async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: /Globina zajema/ }), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: /Omejitev strani/ }), {
+      target: { value: "75" },
+    });
+    fireEvent.change(screen.getByRole("spinbutton", { name: /Velikost odseka/ }), {
+      target: { value: "900" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Zaženi zajem" }));
+
+    await waitFor(() =>
+      expect(api.runPipeline).toHaveBeenCalledWith("", {
+        maxDepth: 3,
+        maxPages: 75,
+        chunkSize: 900,
+      }),
+    );
   });
 });

@@ -48,11 +48,22 @@ class ActiveRunError(RuntimeError):
 # ---------------------------------------------------------------------------
 #  Javni vmesnik
 # ---------------------------------------------------------------------------
-def start_run(url: str | None = None) -> str:
+def start_run(
+    url: str | None = None,
+    *,
+    max_depth: int | None = None,
+    max_pages: int | None = None,
+    chunk_size: int | None = None,
+) -> str:
     """Ustvari zapis o zagonu in v ozadju zažene celoten pipeline."""
     with _start_lock:
         run_id = str(uuid.uuid4())
         source_url = (url or settings.DEFAULT_START_URL).strip()
+        run_options = {
+            "max_depth": max_depth if max_depth is not None else settings.SCRAPE_MAX_DEPTH,
+            "max_pages": max_pages if max_pages is not None else settings.SCRAPE_MAX_PAGES,
+            "chunk_size": chunk_size if chunk_size is not None else settings.CHUNK_SIZE,
+        }
 
         db = SessionLocal()
         try:
@@ -70,7 +81,11 @@ def start_run(url: str | None = None) -> str:
         finally:
             db.close()
 
-        thread = threading.Thread(target=_execute_run, args=(run_id, source_url), daemon=True)
+        thread = threading.Thread(
+            target=_execute_run,
+            args=(run_id, source_url, run_options),
+            daemon=True,
+        )
         thread.start()
     return run_id
 
@@ -148,7 +163,14 @@ class _Logger:
         self.db.commit()
 
 
-def _run_scrapy(run_id: str, url: str, log: _Logger) -> list[dict]:
+def _run_scrapy(
+    run_id: str,
+    url: str,
+    log: _Logger,
+    *,
+    max_depth: int,
+    max_pages: int,
+) -> list[dict]:
     output_rel = f"output/run_{run_id}.json"
     output_abs = SCRAPER_DIR / output_rel
     output_abs.parent.mkdir(parents=True, exist_ok=True)
@@ -158,11 +180,11 @@ def _run_scrapy(run_id: str, url: str, log: _Logger) -> list[dict]:
     cmd = [
         sys.executable, "-m", "scrapy", "crawl", "fei",
         "-a", f"start_url={url}",
-        "-a", f"max_depth={settings.SCRAPE_MAX_DEPTH}",
-        "-s", f"CLOSESPIDER_PAGECOUNT={settings.SCRAPE_MAX_PAGES}",
+        "-a", f"max_depth={max_depth}",
+        "-s", f"CLOSESPIDER_PAGECOUNT={max_pages}",
         "-O", output_rel,
     ]
-    log.log(f"Zaganjam zajem (scrapy): {url} (max {settings.SCRAPE_MAX_PAGES} strani, globina {settings.SCRAPE_MAX_DEPTH})")
+    log.log(f"Zaganjam zajem (scrapy): {url} (max {max_pages} strani, globina {max_depth})")
 
     try:
         proc = subprocess.run(
@@ -210,7 +232,7 @@ def _build_extraction_text(pages: list[dict]) -> str:
     return "\n\n".join(p["text"] for p in ordered)
 
 
-def _execute_run(run_id: str, url: str) -> None:
+def _execute_run(run_id: str, url: str, run_options: dict[str, int]) -> None:
     db = SessionLocal()
     try:
         run = db.get(PipelineRun, run_id)
@@ -220,9 +242,21 @@ def _execute_run(run_id: str, url: str) -> None:
         db.commit()
         log = _Logger(db, run)
         warnings: list[str] = []
+        log.log(
+            "Nastavitve zagona: "
+            f"globina {run_options['max_depth']}, "
+            f"omejitev {run_options['max_pages']} strani, "
+            f"velikost odseka {run_options['chunk_size']} znakov."
+        )
 
         # --- 1. ZAJEM ---
-        raw_pages = _run_scrapy(run_id, url, log)
+        raw_pages = _run_scrapy(
+            run_id,
+            url,
+            log,
+            max_depth=run_options["max_depth"],
+            max_pages=run_options["max_pages"],
+        )
         pages = _dedupe_pages(raw_pages)
         log.log(f"Zajetih in očiščenih strani: {len(pages)}")
         if not pages:
@@ -261,11 +295,16 @@ def _execute_run(run_id: str, url: str) -> None:
             log.log(f"OPOZORILO: {warning}")
 
         # --- 3. CHUNKING -> shranjevanje (relacijska baza) ---
-        log.log("Razdeljevanje besedila na chunke ...")
+        log.log(f"Razdeljevanje besedila na odseke po {run_options['chunk_size']} znakov ...")
         chunk_objs: list[Chunk] = []
         chunk_texts: list[str] = []
         for page in page_objs:
-            for idx, ctext in enumerate(chunking.chunk_text(page.clean_text)):
+            for idx, ctext in enumerate(
+                chunking.chunk_text(
+                    page.clean_text,
+                    chunk_size=run_options["chunk_size"],
+                )
+            ):
                 chunk = Chunk(
                     run_id=run_id,
                     page_id=page.id,

@@ -17,7 +17,12 @@ router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 def run_pipeline(body: RunRequest, db: Session = Depends(get_db)):
     """Zažene celoten pipeline v ozadju in vrne zapis o zagonu."""
     try:
-        run_id = orchestrator.start_run(body.url)
+        run_id = orchestrator.start_run(
+            body.url,
+            max_depth=body.max_depth,
+            max_pages=body.max_pages,
+            chunk_size=body.chunk_size,
+        )
     except orchestrator.ActiveRunError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     run = db.get(PipelineRun, run_id)

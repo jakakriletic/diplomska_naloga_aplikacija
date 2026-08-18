@@ -26,10 +26,15 @@ async function request(path, options = {}) {
 
 export const api = {
   // Pipeline
-  runPipeline: (url) =>
+  runPipeline: (url, options = {}) =>
     request("/api/pipeline/run", {
       method: "POST",
-      body: JSON.stringify({ url: url || null }),
+      body: JSON.stringify({
+        url: url || null,
+        max_depth: options.maxDepth,
+        max_pages: options.maxPages,
+        chunk_size: options.chunkSize,
+      }),
     }),
   latestRun: () => request("/api/pipeline/latest"),
   getRun: (id) => request(`/api/pipeline/runs/${id}`),

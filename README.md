@@ -61,8 +61,9 @@ Odpri:
 
 1. Odpri http://localhost:8081.
 2. Vnesi URL organizacije ali pusti prazno za testni vir `https://fei.uni-nm.si/`.
-3. Klikni zagon zajema.
-4. Po koncu poglej organizacije, zajete strani, iskanje ali AI klepet.
+3. Po želji nastavi globino zajema (0–5), omejitev strani (1–200) in velikost odseka (300–4000 znakov).
+4. Klikni zagon zajema.
+5. Po koncu poglej organizacije, zajete strani, iskanje ali AI klepet.
 
 ## Ustavitev
 
@@ -139,6 +140,9 @@ Nastavitve so v `.env`. Najbolj uporabne:
 - `CORS_ORIGINS`: dovoljeni naslovi frontenda, ločeni z vejico
 - `SCRAPE_MAX_PAGES`: najvec zajetih strani na en zagon
 - `SCRAPE_MAX_DEPTH`: najvecja globina sledenja povezavam
+
+Privzeto globino, omejitev strani in velikost odseka je mogoče pred posameznim
+zagonom spremeniti tudi na nadzorni plošči. Vrednosti veljajo samo za novi zagon.
 
 ## Struktura
 

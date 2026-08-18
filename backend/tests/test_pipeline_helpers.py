@@ -15,6 +15,23 @@ class RequestValidationTests(unittest.TestCase):
     def test_empty_url_uses_default(self):
         self.assertIsNone(RunRequest(url="   ").url)
 
+    def test_run_settings_are_bounded(self):
+        request = RunRequest(max_depth=0, max_pages=200, chunk_size=300)
+        self.assertEqual(request.max_depth, 0)
+        self.assertEqual(request.max_pages, 200)
+        self.assertEqual(request.chunk_size, 300)
+
+        for values in (
+            {"max_depth": -1},
+            {"max_depth": 6},
+            {"max_pages": 0},
+            {"max_pages": 201},
+            {"chunk_size": 299},
+            {"chunk_size": 4001},
+        ):
+            with self.subTest(values=values), self.assertRaises(ValidationError):
+                RunRequest(**values)
+
     def test_rejects_non_http_and_private_urls(self):
         for value in (
             "not-a-url",

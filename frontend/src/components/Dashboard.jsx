@@ -24,6 +24,31 @@ const STAGES = [
   { icon: Boxes, label: "Vektorska baza", desc: "Qdrant" },
 ];
 
+const RUN_SETTINGS_KEY = "run-settings";
+const DEFAULT_RUN_SETTINGS = {
+  maxDepth: 2,
+  maxPages: 40,
+  chunkSize: 1200,
+};
+
+function initialRunSettings() {
+  if (typeof window === "undefined") return DEFAULT_RUN_SETTINGS;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(RUN_SETTINGS_KEY));
+    return saved ? { ...DEFAULT_RUN_SETTINGS, ...saved } : DEFAULT_RUN_SETTINGS;
+  } catch {
+    return DEFAULT_RUN_SETTINGS;
+  }
+}
+
+function parseIntegerSetting(value, label, min, max) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${label} mora biti celo število med ${min} in ${max}.`);
+  }
+  return parsed;
+}
+
 function StatCard({ icon: Icon, label, value, accent }) {
   return (
     <Card className="min-w-0 p-4 sm:p-5">
@@ -44,6 +69,7 @@ export default function Dashboard({ scope }) {
   const [stats, setStats] = useState(null);
   const [run, setRun] = useState(null);
   const [url, setUrl] = useState("");
+  const [runSettings, setRunSettings] = useState(initialRunSettings);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState(null);
   const logRef = useRef(null);
@@ -76,16 +102,34 @@ export default function Dashboard({ scope }) {
   }, [run?.log]);
 
   async function startRun() {
+    let parsedSettings;
+    try {
+      parsedSettings = {
+        maxDepth: parseIntegerSetting(runSettings.maxDepth, "Globina zajema", 0, 5),
+        maxPages: parseIntegerSetting(runSettings.maxPages, "Omejitev strani", 1, 200),
+        chunkSize: parseIntegerSetting(runSettings.chunkSize, "Velikost odseka", 300, 4000),
+      };
+    } catch (e) {
+      setError(e.message);
+      return;
+    }
+
     setStarting(true);
     setError(null);
     try {
-      const r = await api.runPipeline(url.trim());
+      const r = await api.runPipeline(url.trim(), parsedSettings);
       setRun(r);
     } catch (e) {
       setError(e.message);
     } finally {
       setStarting(false);
     }
+  }
+
+  function updateRunSetting(name, value) {
+    const next = { ...runSettings, [name]: value };
+    setRunSettings(next);
+    window.localStorage.setItem(RUN_SETTINGS_KEY, JSON.stringify(next));
   }
 
   return (
@@ -107,6 +151,59 @@ export default function Dashboard({ scope }) {
             Vnesi spletni naslov za zajem. Če pustiš prazno, se uporabi privzeti
             testni vir (FEI UNM).
           </p>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
+          <div className="mb-3">
+            <h3 className="text-sm font-bold text-slate-700">Nastavitve naslednjega zajema</h3>
+            <p className="text-xs text-slate-400">
+              Nastavitve veljajo samo za novi zagon in ne spreminjajo že shranjenih podatkov.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="min-w-0 text-xs font-semibold text-slate-500">
+              Globina zajema
+              <input
+                type="number"
+                min="0"
+                max="5"
+                step="1"
+                value={runSettings.maxDepth}
+                disabled={isActive}
+                onChange={(e) => updateRunSetting("maxDepth", e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+              />
+              <span className="mt-1 block font-normal text-slate-400">0–5 ravni povezav</span>
+            </label>
+            <label className="min-w-0 text-xs font-semibold text-slate-500">
+              Omejitev strani
+              <input
+                type="number"
+                min="1"
+                max="200"
+                step="1"
+                value={runSettings.maxPages}
+                disabled={isActive}
+                onChange={(e) => updateRunSetting("maxPages", e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+              />
+              <span className="mt-1 block font-normal text-slate-400">največ 1–200 strani</span>
+            </label>
+            <label className="min-w-0 text-xs font-semibold text-slate-500">
+              Velikost odseka
+              <input
+                type="number"
+                min="300"
+                max="4000"
+                step="100"
+                value={runSettings.chunkSize}
+                disabled={isActive}
+                onChange={(e) => updateRunSetting("chunkSize", e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+              />
+              <span className="mt-1 block font-normal text-slate-400">300–4000 znakov</span>
+            </label>
+          </div>
         </div>
         <div className="mt-4 flex min-w-0 flex-col gap-3 sm:flex-row">
           <input
