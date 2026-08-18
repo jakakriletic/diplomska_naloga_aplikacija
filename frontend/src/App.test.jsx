@@ -33,6 +33,7 @@ const stats = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   api.stats.mockResolvedValue(stats);
   api.latestRun.mockResolvedValue({
     id: "run-1",
@@ -45,7 +46,7 @@ beforeEach(() => {
     log: "Prva vrstica\nPipeline zaključen z opozorili (1).",
   });
   api.organizations.mockResolvedValue([]);
-  api.pages.mockImplementation((_limit, offset) =>
+  api.pages.mockImplementation((_limit, offset, _scope) =>
     Promise.resolve([
       {
         id: offset === 0 ? 1 : 2,
@@ -72,7 +73,7 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Organizacije" })[0]);
 
     expect(await screen.findByText("Ni organizacij")).toBeInTheDocument();
-    expect(api.organizations).toHaveBeenCalledWith("");
+    expect(api.organizations).toHaveBeenCalledWith("", "latest");
   });
 
   it("preklopi na naslednjo stran zajetih strani", async () => {
@@ -83,7 +84,19 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Naslednja/ }));
 
-    await waitFor(() => expect(api.pages).toHaveBeenCalledWith(50, 50));
+    await waitFor(() => expect(api.pages).toHaveBeenCalledWith(50, 50, "latest"));
     expect(await screen.findByText("https://example.com/druga")).toBeInTheDocument();
+  });
+
+  it("globalno preklopi na celotno zgodovino in izbiro shrani", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Vsi podatki" }));
+
+    await waitFor(() => expect(api.stats).toHaveBeenCalledWith("all"));
+    expect(window.localStorage.getItem("data-scope")).toBe("all");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Organizacije" })[0]);
+    await waitFor(() => expect(api.organizations).toHaveBeenCalledWith("", "all"));
   });
 });

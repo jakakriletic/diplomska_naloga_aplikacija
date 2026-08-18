@@ -74,12 +74,30 @@ def upsert_chunks(points: list[dict]) -> None:
     )
 
 
-def search(query_vector: list[float], limit: int = 10) -> list[dict]:
+def _run_filter(run_ids: list[str] | None) -> qm.Filter | None:
+    if run_ids is None:
+        return None
+    return qm.Filter(
+        must=[
+            qm.FieldCondition(
+                key="run_id",
+                match=qm.MatchAny(any=run_ids),
+            )
+        ]
+    )
+
+
+def search(
+    query_vector: list[float],
+    limit: int = 10,
+    run_ids: list[str] | None = None,
+) -> list[dict]:
     """Semantično iskanje: vrne najbolj podobne chunke s podobnostjo (score)."""
     client = get_client()
     results = client.search(
         collection_name=settings.QDRANT_COLLECTION,
         query_vector=query_vector,
+        query_filter=_run_filter(run_ids),
         limit=limit,
         with_payload=True,
     )
@@ -99,9 +117,17 @@ def search(query_vector: list[float], limit: int = 10) -> list[dict]:
     return hits
 
 
-def count_vectors() -> int:
+def count_vectors(run_ids: list[str] | None = None) -> int:
+    if run_ids == []:
+        return 0
     try:
         client = get_client()
-        return int(client.count(settings.QDRANT_COLLECTION, exact=True).count)
+        return int(
+            client.count(
+                settings.QDRANT_COLLECTION,
+                count_filter=_run_filter(run_ids),
+                exact=True,
+            ).count
+        )
     except Exception:  # noqa: BLE001
         return 0

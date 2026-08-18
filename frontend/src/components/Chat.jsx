@@ -40,7 +40,7 @@ function Sources({ sources }) {
   );
 }
 
-export default function Chat() {
+export default function Chat({ scope }) {
   const [messages, setMessages] = useState([]); // {role, content, sources?, error?}
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,7 +57,7 @@ export default function Chat() {
     setMessages((m) => [...m, { role: "user", content: text }]);
     setLoading(true);
     try {
-      const res = await api.chat(text);
+      const res = await api.chat(text, 6, scope);
       setMessages((m) => [
         ...m,
         { role: "assistant", content: res.answer, sources: res.sources },

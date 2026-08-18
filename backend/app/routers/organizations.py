@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Organization
-from ..queries import latest_organization_versions
-from ..schemas import OrganizationOut
+from ..queries import latest_data_run_ids
+from ..schemas import DataScope, OrganizationOut
 
 router = APIRouter(prefix="/api/organizations", tags=["organizations"])
 
@@ -17,22 +17,17 @@ router = APIRouter(prefix="/api/organizations", tags=["organizations"])
 def list_organizations(
     q: str | None = Query(None, max_length=500),
     limit: int = Query(100, ge=1, le=500),
-    include_history: bool = False,
+    scope: DataScope = "latest",
+    include_history: bool | None = None,
     db: Session = Depends(get_db),
 ):
-    """Seznam zadnjih različic organizacij; po želji tudi celotna zgodovina."""
-    if include_history:
-        stmt = select(Organization)
-    else:
-        ranked_versions = latest_organization_versions()
-        stmt = (
-            select(Organization)
-            .join(
-                ranked_versions,
-                ranked_versions.c.organization_id == Organization.id,
-            )
-            .where(ranked_versions.c.version_rank == 1)
-        )
+    """Seznam organizacij iz zadnjih uporabnih zagonov ali celotne zgodovine."""
+    if include_history is not None:
+        scope = "all" if include_history else "latest"
+
+    stmt = select(Organization)
+    if scope == "latest":
+        stmt = stmt.where(Organization.run_id.in_(latest_data_run_ids()))
 
     q = q.strip() if q else None
     if q:

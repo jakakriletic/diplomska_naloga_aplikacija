@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Chunk, Page
-from ..schemas import ChunkOut, PageDetail, PageOut
+from ..queries import latest_data_run_ids
+from ..schemas import ChunkOut, DataScope, PageDetail, PageOut
 
 router = APIRouter(prefix="/api/pages", tags=["pages"])
 
@@ -15,6 +16,7 @@ router = APIRouter(prefix="/api/pages", tags=["pages"])
 @router.get("", response_model=list[PageOut])
 def list_pages(
     run_id: str | None = None,
+    scope: DataScope = "latest",
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -22,6 +24,8 @@ def list_pages(
     stmt = select(Page).order_by(Page.id.desc())
     if run_id:
         stmt = stmt.where(Page.run_id == run_id)
+    elif scope == "latest":
+        stmt = stmt.where(Page.run_id.in_(latest_data_run_ids()))
     stmt = stmt.offset(offset).limit(limit)
     return list(db.scalars(stmt).all())
 

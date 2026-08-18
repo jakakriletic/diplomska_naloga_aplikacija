@@ -21,10 +21,65 @@ const NAV = [
   { id: "pages", label: "Zajete strani", icon: FileText, component: Pages },
 ];
 
+const DATA_SCOPE_KEY = "data-scope";
+
+function initialDataScope() {
+  if (typeof window === "undefined") return "latest";
+  return window.localStorage.getItem(DATA_SCOPE_KEY) === "all" ? "all" : "latest";
+}
+
+function ScopeToggle({ scope, onChange }) {
+  return (
+    <div className="flex items-center justify-between gap-2 sm:justify-end">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        Obseg podatkov
+      </span>
+      <div
+        className="inline-flex rounded-xl bg-slate-100 p-1"
+        role="group"
+        aria-label="Obseg podatkov"
+      >
+        <button
+          type="button"
+          aria-pressed={scope === "latest"}
+          onClick={() => onChange("latest")}
+          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${
+            scope === "latest"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+          title="Uporabi zadnji uspešni zajem vsake domene"
+        >
+          Najnovejši
+        </button>
+        <button
+          type="button"
+          aria-pressed={scope === "all"}
+          onClick={() => onChange("all")}
+          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${
+            scope === "all"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+          title="Uporabi podatke vseh preteklih zajemov"
+        >
+          Vsi podatki
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [active, setActive] = useState("dashboard");
+  const [scope, setScope] = useState(initialDataScope);
   const Current = NAV.find((n) => n.id === active)?.component ?? Dashboard;
   const activeLabel = NAV.find((n) => n.id === active)?.label;
+
+  function changeScope(nextScope) {
+    setScope(nextScope);
+    window.localStorage.setItem(DATA_SCOPE_KEY, nextScope);
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -67,7 +122,8 @@ export default function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Glava */}
         <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
-          <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center justify-between gap-2">
             <div>
               <h1 className="text-lg font-bold text-slate-800 sm:text-xl">{activeLabel}</h1>
             </div>
@@ -86,11 +142,13 @@ export default function App() {
                 </button>
               ))}
             </nav>
+            </div>
+            <ScopeToggle scope={scope} onChange={changeScope} />
           </div>
         </header>
 
         <main className="mx-auto min-w-0 w-full max-w-6xl flex-1 p-4 sm:p-6">
-          <Current />
+          <Current key={`${active}-${scope}`} scope={scope} />
         </main>
       </div>
     </div>

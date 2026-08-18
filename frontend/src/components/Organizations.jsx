@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Search,
   Building2,
@@ -13,27 +13,27 @@ import {
 import { api } from "../api";
 import { Card, Badge, Spinner, Empty, Field } from "./ui";
 
-export default function Organizations() {
+export default function Organizations({ scope }) {
   const [q, setQ] = useState("");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  async function load(query = "") {
+  const load = useCallback(async (query = "") => {
     setLoading(true);
     setError(null);
     try {
-      setItems(await api.organizations(query));
+      setItems(await api.organizations(query, scope));
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }
+  }, [scope]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   function onSubmit(e) {
     e.preventDefault();

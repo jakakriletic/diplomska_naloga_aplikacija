@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Globe,
   Eraser,
@@ -33,14 +33,14 @@ function StatCard({ icon: Icon, label, value, accent }) {
         </div>
         <div className="min-w-0">
           <p className="text-2xl font-bold text-slate-800">{value ?? "—"}</p>
-          <p className="break-words text-sm text-slate-500">{label}</p>
+          <p className="text-xs leading-tight text-slate-500 sm:text-sm">{label}</p>
         </div>
       </div>
     </Card>
   );
 }
 
-export default function Dashboard() {
+export default function Dashboard({ scope }) {
   const [stats, setStats] = useState(null);
   const [run, setRun] = useState(null);
   const [url, setUrl] = useState("");
@@ -50,26 +50,26 @@ export default function Dashboard() {
 
   const isActive = run && (run.status === "running" || run.status === "pending");
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     try {
-      const [s, latest] = await Promise.all([api.stats(), api.latestRun()]);
+      const [s, latest] = await Promise.all([api.stats(scope), api.latestRun()]);
       setStats(s);
       if (latest) setRun(latest);
       setError(null);
     } catch (e) {
       setError(e.message);
     }
-  }
+  }, [scope]);
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   // Med aktivnim zagonom osvežuj pogosteje
   useEffect(() => {
     const interval = setInterval(refresh, isActive ? 1500 : 8000);
     return () => clearInterval(interval);
-  }, [isActive]);
+  }, [isActive, refresh]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;

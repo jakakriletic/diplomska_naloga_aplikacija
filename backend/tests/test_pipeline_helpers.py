@@ -49,10 +49,14 @@ class RequestValidationTests(unittest.TestCase):
     def test_chat_request_strips_question_and_validates_limit(self):
         request = ChatRequest(question="  Kaj je Etrel?  ", limit=3)
         self.assertEqual(request.question, "Kaj je Etrel?")
+        self.assertEqual(request.scope, "latest")
+        self.assertEqual(ChatRequest(question="test", scope="all").scope, "all")
         with self.assertRaises(ValidationError):
             ChatRequest(question="   ", limit=3)
         with self.assertRaises(ValidationError):
             ChatRequest(question="test", limit=0)
+        with self.assertRaises(ValidationError):
+            ChatRequest(question="test", scope="invalid")
 
 
 class TextPipelineTests(unittest.TestCase):

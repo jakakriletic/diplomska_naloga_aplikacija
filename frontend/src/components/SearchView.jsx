@@ -34,7 +34,7 @@ function Highlight({ text, q }) {
   );
 }
 
-export default function SearchView() {
+export default function SearchView({ scope }) {
   const [mode, setMode] = useState("semantic"); // 'semantic' | 'keyword'
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
@@ -57,7 +57,9 @@ export default function SearchView() {
     setSearched(true);
     try {
       const data =
-        mode === "semantic" ? await api.semantic(q.trim()) : await api.keyword(q.trim());
+        mode === "semantic"
+          ? await api.semantic(q.trim(), 10, scope)
+          : await api.keyword(q.trim(), 20, scope);
       setResults(data);
     } catch (e) {
       setError(e.message);

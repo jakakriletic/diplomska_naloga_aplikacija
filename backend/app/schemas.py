@@ -4,11 +4,13 @@ from __future__ import annotations
 import ipaddress
 import socket
 from datetime import datetime
+from typing import Literal
 from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MAX_SOURCE_URL_LENGTH = 512
+DataScope = Literal["latest", "all"]
 
 
 def validate_public_http_url(value: str | None) -> str | None:
@@ -158,6 +160,7 @@ class ChatRequest(BaseModel):
     """Vprašanje uporabnika; limit = koliko koščkov uporabimo kot kontekst."""
     question: str = Field(min_length=1, max_length=2000)
     limit: int = Field(default=6, ge=1, le=20)
+    scope: DataScope = "latest"
 
     @field_validator("question")
     @classmethod

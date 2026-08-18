@@ -129,7 +129,7 @@ function PageDetail({ pageId, onBack }) {
   );
 }
 
-export default function Pages() {
+export default function Pages({ scope }) {
   const [pages, setPages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -144,8 +144,8 @@ export default function Pages() {
       setError(null);
       try {
         const [items, stats] = await Promise.all([
-          api.pages(PAGE_SIZE, offset),
-          api.stats(),
+          api.pages(PAGE_SIZE, offset, scope),
+          api.stats(scope),
         ]);
         if (!cancelled) {
           setPages(items);
@@ -160,7 +160,7 @@ export default function Pages() {
     return () => {
       cancelled = true;
     };
-  }, [offset]);
+  }, [offset, scope]);
 
   if (selected) return <PageDetail pageId={selected} onBack={() => setSelected(null)} />;
 

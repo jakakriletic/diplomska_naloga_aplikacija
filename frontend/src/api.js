@@ -36,28 +36,31 @@ export const api = {
   listRuns: () => request("/api/pipeline/runs"),
 
   // Statistika
-  stats: () => request("/api/stats"),
+  stats: (scope = "latest") => request(`/api/stats?scope=${scope}`),
 
   // Organizacije
-  organizations: (q) =>
-    request(`/api/organizations${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  organizations: (q, scope = "latest") => {
+    const params = new URLSearchParams({ scope });
+    if (q) params.set("q", q);
+    return request(`/api/organizations?${params}`);
+  },
 
   // Strani
-  pages: (limit = 50, offset = 0) =>
-    request(`/api/pages?limit=${limit}&offset=${offset}`),
+  pages: (limit = 50, offset = 0, scope = "latest") =>
+    request(`/api/pages?limit=${limit}&offset=${offset}&scope=${scope}`),
   page: (id) => request(`/api/pages/${id}`),
   pageChunks: (id) => request(`/api/pages/${id}/chunks`),
 
   // Iskanje
-  semantic: (q, limit = 10) =>
-    request(`/api/search/semantic?q=${encodeURIComponent(q)}&limit=${limit}`),
-  keyword: (q, limit = 20) =>
-    request(`/api/search/keyword?q=${encodeURIComponent(q)}&limit=${limit}`),
+  semantic: (q, limit = 10, scope = "latest") =>
+    request(`/api/search/semantic?q=${encodeURIComponent(q)}&limit=${limit}&scope=${scope}`),
+  keyword: (q, limit = 20, scope = "latest") =>
+    request(`/api/search/keyword?q=${encodeURIComponent(q)}&limit=${limit}&scope=${scope}`),
 
   // AI klepet (RAG) — bonus
-  chat: (question, limit = 6) =>
+  chat: (question, limit = 6, scope = "latest") =>
     request("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ question, limit }),
+      body: JSON.stringify({ question, limit, scope }),
     }),
 };
