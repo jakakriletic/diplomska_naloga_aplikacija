@@ -39,6 +39,9 @@ Izlušči naslednja polja in jih vrni kot JSON objekt s točno temi ključi:
 Pravila:
   - Uporabi IZKLJUČNO podatke iz vhodnega besedila. Ne izmišljuj si vrednosti.
   - Če podatek ni jasno razviden, vrni null za to polje.
+  - Za ceo vrni ime in priimek ene glavne vodilne osebe. Prednost imajo CEO ali
+    predsednik uprave, pri fakulteti dekan, sicer direktor. Ne vračaj celotnega
+    seznama uprave ali nadzornega sveta.
   - founded_year mora biti celo število (npr. 2009), sicer null.
   - main_activity in summary naj bosta kratka in dejstvena, brez marketinškega jezika.
   - Odgovori IZKLJUČNO z veljavnim JSON objektom, brez dodatnega besedila.

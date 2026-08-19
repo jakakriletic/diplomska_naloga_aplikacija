@@ -29,6 +29,7 @@ from ..config import settings
 from ..db import SessionLocal
 from ..models import Chunk, Organization, Page, PipelineRun
 from . import chunking, cleaning, embedding, extraction
+from .extraction_context import build_extraction_text
 
 logger = logging.getLogger(__name__)
 
@@ -226,12 +227,6 @@ def _dedupe_pages(raw_pages: list[dict]) -> list[dict]:
     return list(best.values())
 
 
-def _build_extraction_text(pages: list[dict]) -> str:
-    """Združi besedilo strani; relevantnejše (manjša globina) najprej."""
-    ordered = sorted(pages, key=lambda p: (p["depth"], -len(p["text"])))
-    return "\n\n".join(p["text"] for p in ordered)
-
-
 def _execute_run(run_id: str, url: str, run_options: dict[str, int]) -> None:
     db = SessionLocal()
     try:
@@ -280,7 +275,7 @@ def _execute_run(run_id: str, url: str, run_options: dict[str, int]) -> None:
         org_name = None
         try:
             log.log(f"AI ekstrakcija metapodatkov (model: {settings.OPENAI_MODEL}) ...")
-            extraction_text = _build_extraction_text(pages)
+            extraction_text = build_extraction_text(pages, extraction.MAX_INPUT_CHARS)
             org_data = extraction.extract_organization(extraction_text, url)
             org = Organization(run_id=run_id, **org_data)
             db.add(org)

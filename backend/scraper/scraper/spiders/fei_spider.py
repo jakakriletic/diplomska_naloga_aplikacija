@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import scrapy
 from scrapy.http import TextResponse
 
-from .keywords import KEYWORDS
+from .keywords import HIGH_PRIORITY_KEYWORDS, KEYWORDS
 
 
 class FeiSpider(scrapy.Spider):
@@ -70,7 +70,7 @@ class FeiSpider(scrapy.Spider):
             full_url = response.urljoin(link)
             if self._blocked(full_url):
                 continue
-            priority = 1 if self._relevant(full_url) else 0
+            priority = self._priority(full_url)
             yield scrapy.Request(
                 full_url,
                 callback=self.parse_detail,
@@ -81,6 +81,13 @@ class FeiSpider(scrapy.Spider):
     def _relevant(self, url: str) -> bool:
         u = url.lower()
         return any(keyword in u for keyword in KEYWORDS)
+
+    def _priority(self, url: str) -> int:
+        """Pred stranmi s splošno vsebino obišči strani o organizaciji in vodstvu."""
+        u = url.lower()
+        if any(keyword in u for keyword in HIGH_PRIORITY_KEYWORDS):
+            return 100
+        return 10 if self._relevant(url) else 0
 
     def _blocked(self, url: str) -> bool:
         parsed = urlparse(url)

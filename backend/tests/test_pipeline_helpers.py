@@ -8,7 +8,9 @@ from pydantic import ValidationError
 
 from app.pipeline.chunking import chunk_text
 from app.pipeline.cleaning import clean
+from app.pipeline.extraction_context import build_extraction_text, page_excerpt
 from app.schemas import ChatRequest, RunRequest
+from scraper.scraper.spiders.keywords import HIGH_PRIORITY_KEYWORDS, KEYWORDS
 
 
 class RequestValidationTests(unittest.TestCase):
@@ -84,6 +86,52 @@ class TextPipelineTests(unittest.TestCase):
         chunks = chunk_text("Prvi stavek. Drugi stavek. Tretji stavek.", 25, 5)
         self.assertGreater(len(chunks), 1)
         self.assertTrue(all(chunk for chunk in chunks))
+
+    def test_extraction_excerpt_keeps_leadership_near_end_of_long_page(self):
+        text = "Uvodna predstavitev podjetja. " + ("Splošna vsebina. " * 300)
+        text += "Lovrenc Švegl je CEO podjetja."
+
+        excerpt = page_excerpt(text, 1200)
+
+        self.assertLessEqual(len(excerpt), 1200)
+        self.assertIn("Lovrenc Švegl", excerpt)
+        self.assertIn("CEO", excerpt)
+
+    def test_extraction_context_reserves_space_for_management_page(self):
+        pages = [
+            {
+                "url": "https://example.com/",
+                "depth": 0,
+                "text": "Domača stran. " + ("Predstavitev. " * 500),
+            },
+            {
+                "url": "https://example.com/privacy-policy/",
+                "depth": 1,
+                "text": "Pravilnik zasebnosti. " * 1000,
+            },
+            {
+                "url": "https://example.com/o-podjetju/vodstvo/",
+                "depth": 2,
+                "text": "Vodstvo Družbo vodi Jože Primer, predsednik uprave.",
+            },
+            {
+                "url": "https://example.com/zgodovina/",
+                "depth": 1,
+                "text": "Podjetje je bilo ustanovljeno leta 1989.",
+            },
+        ]
+
+        context = build_extraction_text(pages, max_chars=6000)
+
+        self.assertLessEqual(len(context), 6000)
+        self.assertIn("Jože Primer", context)
+        self.assertIn("ustanovljeno leta 1989", context)
+        self.assertIn("[VIR: https://example.com/o-podjetju/vodstvo/]", context)
+
+    def test_fei_management_urls_are_prioritized_by_scraper(self):
+        for keyword in ("o_fakulteti", "poslovodstvo", "organiziranost", "organi"):
+            self.assertIn(keyword, KEYWORDS)
+            self.assertIn(keyword, HIGH_PRIORITY_KEYWORDS)
 
 
 if __name__ == "__main__":
