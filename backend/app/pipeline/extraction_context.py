@@ -29,6 +29,8 @@ _EXTRACTION_HINTS = (
     "predsednik uprave", "predsednica uprave", "chief executive", "ceo",
     "generalni direktor", "generalna direktorica", "dekanica", "dekan",
     "direktor", "direktorica", "vodstvo", "management", "leadership",
+    "kontakt in lokacija", "contact and location", "kontaktni podatki", "contact details",
+    "kontakt", "contact",
     "ustanovljen", "ustanovljena", "founded", "established",
     "e-pošta", "e-naslov", "email", "telefon", "phone", "naslov",
     "address", "headquarters", "sedež",

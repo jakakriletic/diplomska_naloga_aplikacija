@@ -97,6 +97,47 @@ class TextPipelineTests(unittest.TestCase):
         self.assertIn("Lovrenc Švegl", excerpt)
         self.assertIn("CEO", excerpt)
 
+    def test_extraction_excerpt_keeps_contact_block_at_end_of_homepage(self):
+        text = "Revoz je proizvajalec avtomobilov. " + ("Splošna vsebina. " * 180)
+        text += (
+            "Kontakt in lokacija Revoz d.d. Belokranjska cesta 4, "
+            "8000 Novo mesto, SLOVENIJA T: 07/3315000 "
+            "E: info.revoz@renault.si"
+        )
+
+        excerpt = page_excerpt(text, 2400)
+
+        self.assertLessEqual(len(excerpt), 2400)
+        self.assertIn("Belokranjska cesta 4", excerpt)
+        self.assertIn("07/3315000", excerpt)
+        self.assertIn("info.revoz@renault.si", excerpt)
+
+    def test_extraction_context_keeps_leadership_and_homepage_contact_data(self):
+        pages = [
+            {
+                "url": "https://example.com/",
+                "depth": 0,
+                "text": (
+                    "Predstavitev podjetja. "
+                    + ("Splošna vsebina. " * 180)
+                    + "Kontakt in lokacija Primer d.o.o. Glavna cesta 1, Ljubljana "
+                    + "T: 01/2345678 E: info@example.com"
+                ),
+            },
+            {
+                "url": "https://example.com/vodstvo/",
+                "depth": 1,
+                "text": "Vodstvo Jože Primer je predsednik uprave in generalni direktor.",
+            },
+        ]
+
+        context = build_extraction_text(pages, max_chars=6000)
+
+        self.assertIn("Jože Primer", context)
+        self.assertIn("Glavna cesta 1", context)
+        self.assertIn("01/2345678", context)
+        self.assertIn("info@example.com", context)
+
     def test_extraction_context_reserves_space_for_management_page(self):
         pages = [
             {
